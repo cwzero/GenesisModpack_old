@@ -1,0 +1,117 @@
+apply from: "${gradleDir}/java-base.gradle"
+apply from: "${packDir}/manifest.gradle"
+apply from: "${gradleDir}/functions.gradle"
+
+configurations {
+    download
+}
+
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    download group: 'com.github.cwzero', name: 'PackBuilder', version: '0.0.18'
+}
+
+task cleanMods(type: Delete) {
+    doLast {
+        file(modsDir).listFiles().each {
+            delete(it)
+        }
+    }
+}
+
+task copyToSrc {
+    def inputManifest = file("${projectDir}/manifest.json")
+    def outputManifest = file("${srcDir}/manifest.json")
+
+    inputs.files(inputManifest)
+    outputs.files(outputManifest)
+
+    doLast {
+        def jsonSlurper = new groovy.json.JsonSlurper()
+        def manifest = jsonSlurper.parseText(inputManifest.text)
+        def mods = manifest.files
+        def json = groovy.json.JsonOutput.toJson(mods)
+
+        outputManifest.text = """
+{
+    "files": ${groovy.json.JsonOutput.prettyPrint(json)}
+}
+        """
+    }
+}
+
+generateTwitchManifest.mustRunAfter copyToSrc
+
+task updateMods(type: Exec) {
+    mustRunAfter cleanMods, copyToSrc
+    dependsOn generateTwitchManifest
+    workingDir buildDir
+    mkdir buildDir
+
+    inputs.files("${buildDir}/manifest.json")
+    outputs.files("${buildDir}/updated.json")
+
+    def classpath = configurations.download.files.join(java.io.File.pathSeparator);
+
+    def args = [
+        'java', 
+        '-cp', 
+        classpath,
+        'com.liquidforte.packbuilder.main.Main',
+        'update',
+        file("${buildDir}/manifest.json").absolutePath,
+        file("${buildDir}/updated.json").absolutePath
+    ]
+
+    commandLine args
+}
+
+task copyUpdated {
+    dependsOn updateMods
+
+    def inputManifest = file("${buildDir}/updated.json")
+    def outputManifest = file("${srcDir}/manifest.json")
+
+    inputs.files(inputManifest)
+    outputs.files(outputManifest)
+
+    doLast {
+        def jsonSlurper = new groovy.json.JsonSlurper()
+        def manifest = jsonSlurper.parseText(inputManifest.text)
+        def mods = manifest.files
+        def json = groovy.json.JsonOutput.toJson(mods)
+
+        outputManifest.text = """
+{
+    "files": ${groovy.json.JsonOutput.prettyPrint(json)}
+}
+        """
+    }
+}
+updateMods.finalizedBy copyUpdated
+
+task downloadMods(type: Exec) {
+    mustRunAfter cleanMods, updateMods
+    dependsOn generateTwitchManifest
+    workingDir buildDir
+    mkdir buildDir
+
+    inputs.files("${buildDir}/manifest.json")
+
+    def classpath = configurations.download.files.join(java.io.File.pathSeparator);
+
+    def args = [
+        'java', 
+        '-cp', 
+        classpath,
+        'com.liquidforte.packbuilder.main.Main',
+        'download',
+        file("${buildDir}/manifest.json").absolutePath,
+        file(modsDir).absolutePath
+    ]
+
+    commandLine args
+}

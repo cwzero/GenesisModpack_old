@@ -1,0 +1,16 @@
+
+distributions {
+    mods {
+        contents {
+            from (modsDir) {
+                include '**'
+                into 'mods'
+            }
+            into '/'
+        }
+    }
+}
+
+installModsDist.dependsOn downloadMods
+modsDistTar.dependsOn downloadMods
+modsDistZip.dependsOn downloadMods
