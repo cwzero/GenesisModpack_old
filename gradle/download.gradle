@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    download group: 'com.github.cwzero', name: 'PackBuilder', version: '0.0.18'
+    download group: 'com.github.cwzero', name: 'PackBuilder', version: '0.0.23'
 }
 
 task cleanMods(type: Delete) {
